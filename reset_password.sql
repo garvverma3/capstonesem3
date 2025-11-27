@@ -1,1 +1,0 @@
-ALTER USER 'root'@'localhost' IDENTIFIED BY 'newton123'; FLUSH PRIVILEGES;

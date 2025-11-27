@@ -1,38 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Login from './Login';
 import Signup from './Signup';
+import Dashboard from './Dashboard';
 import './styles.css';
 
 function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  if (user) {
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userData = localStorage.getItem('user');
+    if (token && userData) {
+      setUser(JSON.parse(userData));
+    }
+    setLoading(false);
+  }, []);
+
+  const handleAuthSuccess = (userData) => {
+    setUser(userData.user);
+    localStorage.setItem('token', userData.token);
+    localStorage.setItem('user', JSON.stringify(userData.user));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  };
+
+  if (loading) {
     return (
-      <div className="welcome-container">
-        <h1 className="welcome-title">Welcome back, {user.name}</h1>
-        <button className="btn-secondary" onClick={() => setUser(null)}>Sign Out</button>
+      <div className="auth-page">
+        <div className="auth-container">
+          <div style={{ textAlign: 'center', color: '#a1a1aa' }}>Loading...</div>
+        </div>
       </div>
     );
   }
 
+  if (user) {
+    return <Dashboard user={user} onLogout={handleLogout} />;
+  }
+
   return (
-    <div className="auth-container">
-      <h1 className="auth-header">{isLogin ? 'Welcome Back' : 'Create Account'}</h1>
-      {isLogin ? (
-        <Login setUser={setUser} />
-      ) : (
-        <Signup setUser={setUser} />
-      )}
-      <div className="auth-switch">
-        {isLogin ? "Don't have an account? " : "Already have an account? "}
-        <a 
-          href="#" 
-          className="auth-link"
-          onClick={(e) => { e.preventDefault(); setIsLogin(!isLogin); }}
-        >
-          {isLogin ? 'Sign up' : 'Sign in'}
-        </a>
+    <div className="auth-page">
+      <div className="auth-container">
+        {isLogin ? (
+          <Login onSuccess={handleAuthSuccess} onSwitch={() => setIsLogin(false)} />
+        ) : (
+          <Signup onSuccess={handleAuthSuccess} onSwitch={() => setIsLogin(true)} />
+        )}
       </div>
     </div>
   );
