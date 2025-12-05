@@ -1,10 +1,22 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
+import { AuthProvider } from './context/AuthContext';
+import './index.css';
 
-console.log('✅ Frontend running successfully on http://localhost:3000');
-console.log('🔗 Backend API connected to http://localhost:3001');
-console.log('🚀 Ready to use login/signup functionality!');
+const queryClient = new QueryClient();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  </React.StrictMode>,
+);
