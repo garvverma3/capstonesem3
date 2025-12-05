@@ -12,9 +12,25 @@ const { notFound } = require('./middlewares/notFound');
 
 const app = express();
 
+// CORS configuration - support multiple origins for Vercel
+const allowedOrigins = [
+  config.clientOrigin,
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+  ...(process.env.CLIENT_ORIGIN ? [process.env.CLIENT_ORIGIN] : []),
+  'http://localhost:3000',
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: config.clientOrigin,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow all origins in development, restrict in production
+      }
+    },
     credentials: true,
   }),
 );

@@ -1,7 +1,23 @@
 import axios from 'axios';
 
+// Auto-detect API URL based on environment
+const getApiUrl = () => {
+  // If explicitly set, use that
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // In production (Vercel), use the same origin with /api prefix
+  if (process.env.NODE_ENV === 'production') {
+    return '/api';
+  }
+  
+  // Development fallback
+  return 'http://localhost:5001/api';
+};
+
 const apiClient = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5001/api',
+  baseURL: getApiUrl(),
   withCredentials: false,
 });
 
