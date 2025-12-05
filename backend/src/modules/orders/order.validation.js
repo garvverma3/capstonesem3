@@ -2,10 +2,8 @@ const { z } = require('zod');
 
 const createOrderSchema = z.object({
   body: z.object({
-    drug: z.string().min(1),
+    drugId: z.coerce.number().int().positive(),
     quantity: z.coerce.number().int().positive(),
-    customerName: z.string().min(2),
-    orderDate: z.coerce.date().optional(),
   }),
 });
 

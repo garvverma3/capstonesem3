@@ -1,9 +1,11 @@
+```javascript
 const { StatusCodes } = require('http-status-codes');
 const { ApiResponse } = require('../../utils/apiResponse');
 const { ApiError } = require('../../utils/apiError');
 const { asyncHandler } = require('../../utils/asyncHandler');
 const { buildPagination } = require('../../utils/paginate');
 const supplierService = require('./supplier.service');
+const prisma = require('../../config/prisma'); // Added prisma import
 
 const createSupplier = asyncHandler(async (req, res) => {
   const supplier = await supplierService.createSupplier(req.body);
