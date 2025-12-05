@@ -35,6 +35,23 @@ const initializeApp = async () => {
 module.exports = async (req, res) => {
   try {
     const app = await initializeApp();
+    
+    // Vercel routes /api/* to this function
+    // Express app has routes at /health and /api/*
+    // So we need to handle both cases:
+    // - /api/health → /health (strip /api for direct routes)
+    // - /api/auth/login → /api/auth/login (keep as is for /api routes)
+    
+    const originalUrl = req.url;
+    
+    // Strip /api prefix for direct routes (like /health)
+    // Keep /api prefix for routes that are under /api in Express
+    if (originalUrl.startsWith('/api/health')) {
+      req.url = originalUrl.replace(/^\/api/, '');
+    }
+    // For all other /api/* routes, Express expects them with /api prefix
+    // So we keep the URL as is
+    
     return app(req, res);
   } catch (error) {
     console.error('Serverless function error:', error);
