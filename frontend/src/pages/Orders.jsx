@@ -7,11 +7,14 @@ import { fetchOrders, createOrder, updateOrderStatus, deleteOrder } from '../ser
 import { fetchDrugs } from '../services/drugService';
 import { useAuth } from '../hooks/useAuth';
 import { ROLES } from '../constants/roles';
-import { ShoppingCart, Plus, Filter, Calendar, User, Package, CheckCircle, XCircle, Trash2, Edit2, X } from 'lucide-react';
+import { ShoppingCart, Plus, Filter, Calendar, User, Package, CheckCircle, XCircle, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 
 const Orders = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [editingOrder, setEditingOrder] = useState(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [sortBy, setSortBy] = useState('createdAt');
   const queryClient = useQueryClient();
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
@@ -24,8 +27,8 @@ const Orders = () => {
   const canManage = user.role === ROLES.ADMIN || user.role === ROLES.PHARMACIST;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['orders', statusFilter],
-    queryFn: () => fetchOrders({ status: statusFilter }),
+    queryKey: ['orders', statusFilter, page, sortBy],
+    queryFn: () => fetchOrders({ status: statusFilter, page, limit, sort: sortBy }),
   });
 
   const { data: drugs } = useQuery({
@@ -130,14 +133,26 @@ const Orders = () => {
           <select
             className="border border-slate-200 rounded-lg px-4 py-2 bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           >
             <option value="">All Orders</option>
             <option value="pending">Pending</option>
             <option value="fulfilled">Fulfilled</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <div className="ml-auto text-sm text-slate-600">
+          <div className="flex items-center gap-2 ml-auto">
+            <ArrowUpDown className="w-4 h-4 text-slate-400" />
+            <select
+              className="border border-slate-200 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="createdAt">Newest First</option>
+              <option value="totalAmount">Amount (High-Low)</option>
+              <option value="status">Status</option>
+            </select>
+          </div>
+          <div className="text-sm text-slate-600">
             Total: <span className="font-semibold">{meta?.total ?? orders.length}</span>
           </div>
         </div>
@@ -255,6 +270,34 @@ const Orders = () => {
             data={orders}
             emptyMessage="No orders found"
           />
+
+          {/* Pagination */}
+          {meta?.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 px-4">
+              <div className="text-sm text-slate-600">
+                Page {page} of {meta.totalPages} • Showing {orders.length} of {meta.total} orders
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-medium text-sm">
+                  {page}
+                </span>
+                <button
+                  onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                  disabled={page === meta.totalPages}
+                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

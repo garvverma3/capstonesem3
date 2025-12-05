@@ -10,11 +10,14 @@ import {
 } from '../services/supplierService';
 import { useAuth } from '../hooks/useAuth';
 import { ROLES } from '../constants/roles';
-import { Users, Plus, Search, Trash2, Mail, Phone, MapPin, Edit2, X } from 'lucide-react';
+import { Users, Plus, Search, Trash2, Mail, Phone, MapPin, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 
 const Suppliers = () => {
   const [search, setSearch] = useState('');
   const [editingSupplier, setEditingSupplier] = useState(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [sortBy, setSortBy] = useState('createdAt');
   const queryClient = useQueryClient();
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
@@ -31,8 +34,8 @@ const Suppliers = () => {
   const canManage = user.role === ROLES.ADMIN || user.role === ROLES.PHARMACIST;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['suppliers', search],
-    queryFn: () => fetchSuppliers({ search }),
+    queryKey: ['suppliers', search, page, sortBy],
+    queryFn: () => fetchSuppliers({ search, page, limit, sort: sortBy }),
   });
 
   const createMutation = useMutation({
@@ -75,7 +78,8 @@ const Suppliers = () => {
   };
 
   const suppliers = data?.data || [];
-  const meta = data?.meta;
+  const meta = data?.meta || {};
+  const totalPages = meta.totalPages || 1;
 
   return (
     <div className="space-y-6">
@@ -91,16 +95,30 @@ const Suppliers = () => {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search and Sort */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-soft animate-slide-down">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input
-            placeholder="Search suppliers by name or email..."
-            className="w-full pl-10 border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <input
+              placeholder="Search suppliers by name or email..."
+              className="w-full pl-10 border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="w-4 h-4 text-slate-400" />
+            <select
+              className="border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+            >
+              <option value="createdAt">Newest First</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="email">Email (A-Z)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -187,6 +205,34 @@ const Suppliers = () => {
             data={suppliers}
             emptyMessage="No suppliers found"
           />
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 px-4">
+              <div className="text-sm text-slate-600">
+                Page {page} of {totalPages} • Showing {suppliers.length} of {meta.total} suppliers
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-medium text-sm">
+                  {page}
+                </span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -35,7 +35,7 @@ router.patch(
   updateOrderStatus,
 );
 
-router.delete('/:orderId', authorize(ROLES.ADMIN), deleteOrder);
+router.delete('/:orderId', authorize(ROLES.ADMIN, ROLES.PHARMACIST), deleteOrder);
 
 module.exports = router;
 
