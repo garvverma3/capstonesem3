@@ -1,7 +1,6 @@
 const { StatusCodes } = require('http-status-codes');
-const { Order } = require('./order.model');
-const { Drug } = require('../drugs/drug.model');
-const { determineStatus } = require('../drugs/drug.helpers');
+const prisma = require('../../config/prisma');
+const orderService = require('./order.service');
 const { ApiError } = require('../../utils/apiError');
 const { ApiResponse } = require('../../utils/apiResponse');
 const { asyncHandler } = require('../../utils/asyncHandler');
@@ -9,9 +8,11 @@ const { buildPagination } = require('../../utils/paginate');
 const { ROLES } = require('../../constants/roles');
 
 const createOrder = asyncHandler(async (req, res) => {
-  const { drug: drugId, quantity } = req.body;
+  const { drugId, quantity } = req.body;
+  const userId = req.user.id;
 
-  const drug = await Drug.findById(drugId);
+  // Check drug availability
+  const drug = await prisma.drug.findUnique({ where: { id: parseInt(drugId) } });
   if (!drug) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Drug not found');
   }
@@ -19,16 +20,42 @@ const createOrder = asyncHandler(async (req, res) => {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Insufficient stock');
   }
 
-  drug.quantity -= quantity;
-  drug.status = determineStatus({
-    quantity: drug.quantity,
-    expiryDate: drug.expiryDate,
-  });
-  await drug.save();
+  // Calculate total
+  const totalAmount = drug.price * quantity;
 
-  const order = await Order.create({
-    ...req.body,
-    pharmacist: req.user._id,
+  // Create order with order items in a transaction
+  const order = await prisma.$transaction(async (tx) => {
+    // Update drug quantity
+    await tx.drug.update({
+      where: { id: parseInt(drugId) },
+      data: { quantity: { decrement: quantity } }
+    });
+
+    // Create order
+    const newOrder = await tx.order.create({
+      data: {
+        userId,
+        status: 'pending',
+        totalAmount,
+        items: {
+          create: {
+            drugId: parseInt(drugId),
+            quantity,
+            price: drug.price
+          }
+        }
+      },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        items: {
+          include: {
+            drug: true
+          }
+        }
+      }
+    });
+
+    return newOrder;
   });
 
   return res
@@ -37,40 +64,23 @@ const createOrder = asyncHandler(async (req, res) => {
 });
 
 const listOrders = asyncHandler(async (req, res) => {
-  const {
-    status,
-    customerName,
-    pharmacistId,
-    dateFrom,
-    dateTo,
-  } = req.query;
+  const { status } = req.query;
   const pagination = buildPagination(req.query);
-  const filter = {};
 
+  const filters = {};
+
+  // Pharmacists can only see their own orders (if they are the customer)
+  // Admins can see all orders
   if (req.user.role === ROLES.PHARMACIST) {
-    filter.pharmacist = req.user._id;
-  } else if (pharmacistId) {
-    filter.pharmacist = pharmacistId;
-  }
-  if (status) filter.status = status;
-  if (customerName) {
-    filter.customerName = { $regex: customerName, $options: 'i' };
-  }
-  if (dateFrom || dateTo) {
-    filter.orderDate = {};
-    if (dateFrom) filter.orderDate.$gte = new Date(dateFrom);
-    if (dateTo) filter.orderDate.$lte = new Date(dateTo);
+    filters.userId = req.user.id;
   }
 
-  const [orders, total] = await Promise.all([
-    Order.find(filter)
-      .populate('drug')
-      .populate('pharmacist', 'name email')
-      .skip(pagination.skip)
-      .limit(pagination.limit)
-      .sort({ createdAt: -1 }),
-    Order.countDocuments(filter),
-  ]);
+  if (status) filters.status = status;
+
+  const { orders, total } = await orderService.listOrders(filters, {
+    skip: pagination.skip,
+    limit: pagination.limit
+  });
 
   return res.status(StatusCodes.OK).json(
     new ApiResponse(
@@ -88,16 +98,16 @@ const listOrders = asyncHandler(async (req, res) => {
 });
 
 const getOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.orderId)
-    .populate('drug')
-    .populate('pharmacist', 'name email role');
+  const order = await orderService.findOrderById(req.params.orderId);
+
   if (!order) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Order not found');
   }
 
+  // Check permissions
   if (
     req.user.role === ROLES.PHARMACIST &&
-    order.pharmacist._id.toString() !== req.user._id.toString()
+    order.userId !== req.user.id
   ) {
     throw new ApiError(StatusCodes.FORBIDDEN, 'Not allowed');
   }
@@ -110,29 +120,31 @@ const getOrder = asyncHandler(async (req, res) => {
 const updateOrderStatus = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
   const { status } = req.body;
-  const order = await Order.findById(orderId);
+
+  const order = await orderService.findOrderById(orderId);
   if (!order) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Order not found');
   }
 
+  // Check permissions
   if (
     req.user.role === ROLES.PHARMACIST &&
-    order.pharmacist.toString() !== req.user._id.toString()
+    order.userId !== req.user.id
   ) {
     throw new ApiError(StatusCodes.FORBIDDEN, 'Not allowed');
   }
 
-  order.status = status;
-  await order.save();
+  const updatedOrder = await orderService.updateOrderStatus(parseInt(orderId), status);
 
   return res
     .status(StatusCodes.OK)
-    .json(new ApiResponse(StatusCodes.OK, order, 'Order updated'));
+    .json(new ApiResponse(StatusCodes.OK, updatedOrder, 'Order updated'));
 });
 
 const deleteOrder = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
-  const order = await Order.findById(orderId);
+
+  const order = await orderService.findOrderById(orderId);
   if (!order) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Order not found');
   }
@@ -144,7 +156,8 @@ const deleteOrder = asyncHandler(async (req, res) => {
     );
   }
 
-  await Order.deleteOne({ _id: orderId });
+  await orderService.deleteOrder(parseInt(orderId));
+
   return res
     .status(StatusCodes.OK)
     .json(new ApiResponse(StatusCodes.OK, null, 'Order deleted'));
@@ -157,4 +170,3 @@ module.exports = {
   updateOrderStatus,
   deleteOrder,
 };
-

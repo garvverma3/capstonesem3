@@ -23,19 +23,19 @@ router.get('/:supplierId', getSupplier);
 
 router.post(
   '/',
-  authorize(ROLES.ADMIN),
+  authorize(ROLES.ADMIN, ROLES.PHARMACIST),
   validateRequest(createSupplierSchema),
   createSupplier,
 );
 
 router.put(
   '/:supplierId',
-  authorize(ROLES.ADMIN),
+  authorize(ROLES.ADMIN, ROLES.PHARMACIST),
   validateRequest(updateSupplierSchema),
   updateSupplier,
 );
 
-router.delete('/:supplierId', authorize(ROLES.ADMIN), deleteSupplier);
+router.delete('/:supplierId', authorize(ROLES.ADMIN, ROLES.PHARMACIST), deleteSupplier);
 
 module.exports = router;
 

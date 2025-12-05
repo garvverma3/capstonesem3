@@ -290,7 +290,7 @@ const Orders = () => {
             >
               <option value="">Select drug</option>
               {drugs?.data?.map((drug) => (
-                <option key={drug.id} value={drug.id}>
+                <option key={`drug-${drug.id}`} value={drug.id}>
                   {drug.name} - Stock: {drug.quantity} - ${drug.price.toFixed(2)}
                 </option>
               ))}
