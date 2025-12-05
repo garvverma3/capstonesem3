@@ -28,8 +28,9 @@ Click **"Add Environment Variable"** and add:
 
 **Important**: 
 - Replace `your-render-backend.onrender.com` with your actual Render backend URL
-- **Must include `/api` at the end**
-- Example: `https://capstone-api.onrender.com/api`
+- **Must include `/api` at the end** - this is critical!
+- Example: `https://capstone-api.onrender.com/api` ✅
+- Wrong: `https://capstone-api.onrender.com` ❌
 
 ### Deploy
 
