@@ -6,18 +6,29 @@ import {
   createSupplier,
   deleteSupplier,
   fetchSuppliers,
+  updateSupplier,
 } from '../services/supplierService';
 import { useAuth } from '../hooks/useAuth';
 import { ROLES } from '../constants/roles';
-import { Users, Plus, Search, Trash2, Mail, Phone, Building, MapPin } from 'lucide-react';
+import { Users, Plus, Search, Trash2, Mail, Phone, MapPin, Edit2, X } from 'lucide-react';
 
 const Suppliers = () => {
   const [search, setSearch] = useState('');
+  const [editingSupplier, setEditingSupplier] = useState(null);
   const queryClient = useQueryClient();
-  const { register, handleSubmit, reset } = useForm();
+
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
+  // Form for editing matches the create form structure
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    reset: resetEdit,
+    setValue: setValueEdit,
+    formState: { errors: errorsEdit }
+  } = useForm();
 
   const { user } = useAuth();
-  const canManage = user.role === ROLES.ADMIN;
+  const canManage = user.role === ROLES.ADMIN || user.role === ROLES.PHARMACIST;
 
   const { data, isLoading } = useQuery({
     queryKey: ['suppliers', search],
@@ -30,12 +41,38 @@ const Suppliers = () => {
       queryClient.invalidateQueries(['suppliers']);
       reset();
     },
+    onError: (error) => {
+      alert(`Error creating supplier: ${error.response?.data?.message || error.message}`);
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => updateSupplier(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['suppliers']);
+      setEditingSupplier(null);
+      resetEdit();
+    },
+    onError: (error) => {
+      alert(`Error updating supplier: ${error.response?.data?.message || error.message}`);
+    }
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => deleteSupplier(id),
     onSuccess: () => queryClient.invalidateQueries(['suppliers']),
+    onError: (error) => {
+      alert(`Error deleting supplier: ${error.response?.data?.message || error.message}`);
+    }
   });
+
+  const handleEditClick = (supplier) => {
+    setEditingSupplier(supplier);
+    setValueEdit('name', supplier.name);
+    setValueEdit('email', supplier.email);
+    setValueEdit('phone', supplier.phone);
+    setValueEdit('address', supplier.address);
+  };
 
   const suppliers = data?.data || [];
   const meta = data?.meta;
@@ -59,17 +96,11 @@ const Suppliers = () => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
-            placeholder="Search suppliers by name, company, or email..."
+            placeholder="Search suppliers by name or email..."
             className="w-full pl-10 border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-        </div>
-        <div className="mt-3 pt-3 border-t border-slate-200">
-          <p className="text-sm text-slate-600">
-            Showing <span className="font-semibold">{suppliers.length}</span> of{' '}
-            <span className="font-semibold">{meta?.total ?? suppliers.length}</span> suppliers
-          </p>
         </div>
       </div>
 
@@ -81,98 +112,152 @@ const Suppliers = () => {
         </div>
       ) : (
         <div className="animate-fade-in">
-        <DataTable
-          columns={[
-            {
-              key: 'name',
-              label: 'Contact Person',
-              render: (row) => (
-                <div>
-                  <p className="font-semibold text-slate-900">{row.name}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{row.company}</p>
-                </div>
-              ),
-            },
-            {
-              key: 'company',
-              label: 'Company',
-              render: (row) => (
-                <div className="flex items-center gap-2">
-                  <Building className="w-4 h-4 text-slate-400" />
-                  <span className="text-slate-700">{row.company}</span>
-                </div>
-              ),
-            },
-            {
-              key: 'contactEmail',
-              label: 'Email',
-              render: (row) => (
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-slate-400" />
-                  <a
-                    href={`mailto:${row.contactEmail}`}
-                    className="text-primary-600 hover:text-primary-700 text-sm"
-                  >
-                    {row.contactEmail}
-                  </a>
-                </div>
-              ),
-            },
-            {
-              key: 'contactPhone',
-              label: 'Phone',
-              render: (row) => (
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-slate-400" />
-                  <a
-                    href={`tel:${row.contactPhone}`}
-                    className="text-slate-700 hover:text-primary-600 text-sm"
-                  >
-                    {row.contactPhone}
-                  </a>
-                </div>
-              ),
-            },
-            {
-              key: 'address',
-              label: 'Address',
-              render: (row) => (
-                row.address ? (
-                  <div className="flex items-start gap-2 max-w-xs">
-                    <MapPin className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm text-slate-600">{row.address}</span>
+          <DataTable
+            columns={[
+              {
+                key: 'name',
+                label: 'Supplier Name',
+                render: (row) => (
+                  <div className="font-semibold text-slate-900">{row.name}</div>
+                ),
+              },
+              {
+                key: 'email',
+                label: 'Email',
+                render: (row) => (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-slate-400" />
+                    <a href={`mailto:${row.email}`} className="text-primary-600 hover:text-primary-700 text-sm">
+                      {row.email}
+                    </a>
                   </div>
-                ) : (
-                  <span className="text-slate-400 text-sm">—</span>
-                )
-              ),
-            },
-            ...(canManage
-              ? [
-                  {
-                    key: 'actions',
-                    label: 'Actions',
-                    render: (row) => (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`Are you sure you want to delete ${row.name}?`)) {
-                            deleteMutation.mutate(row._id);
-                          }
-                        }}
-                        className="text-sm text-rose-600 hover:text-rose-700 flex items-center gap-1 font-medium"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Delete
-                      </button>
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-          data={suppliers}
-          emptyMessage="No suppliers yet"
-        />
+                ),
+              },
+              {
+                key: 'phone',
+                label: 'Phone',
+                render: (row) => (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-slate-400" />
+                    <a href={`tel:${row.phone}`} className="text-slate-700 hover:text-primary-600 text-sm">
+                      {row.phone}
+                    </a>
+                  </div>
+                ),
+              },
+              {
+                key: 'address',
+                label: 'Address',
+                render: (row) => (
+                  row.address ? (
+                    <div className="flex items-start gap-2 max-w-xs">
+                      <MapPin className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm text-slate-600 truncate">{row.address}</span>
+                    </div>
+                  ) : <span className="text-slate-400 text-sm">—</span>
+                ),
+              },
+              ...(canManage ? [{
+                key: 'actions',
+                label: 'Actions',
+                render: (row) => (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEditClick(row)}
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit Supplier"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to delete ${row.name}?`)) {
+                          deleteMutation.mutate(row.id);
+                        }
+                      }}
+                      className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Delete Supplier"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ),
+              }] : []),
+            ]}
+            data={suppliers}
+            emptyMessage="No suppliers found"
+          />
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingSupplier && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900">Edit Supplier</h3>
+              <button
+                onClick={() => setEditingSupplier(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form
+              className="p-6 space-y-4"
+              onSubmit={handleSubmitEdit((data) => updateMutation.mutate({ id: editingSupplier.id, data }))}
+            >
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Supplier Name *</label>
+                <input
+                  {...registerEdit('name', { required: 'Name is required' })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+                {errorsEdit.name && <span className="text-xs text-rose-500">{errorsEdit.name.message}</span>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
+                <input
+                  type="email"
+                  {...registerEdit('email', { required: 'Email is required' })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+                {errorsEdit.email && <span className="text-xs text-rose-500">{errorsEdit.email.message}</span>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone *</label>
+                <input
+                  {...registerEdit('phone', { required: 'Phone is required' })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                />
+                {errorsEdit.phone && <span className="text-xs text-rose-500">{errorsEdit.phone.message}</span>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+                <textarea
+                  {...registerEdit('address')}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSupplier(null)}
+                  className="px-4 py-2 text-slate-700 hover:bg-slate-50 rounded-lg font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateMutation.isLoading}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors disabled:opacity-70"
+                >
+                  {updateMutation.isLoading ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -193,50 +278,35 @@ const Suppliers = () => {
             onSubmit={handleSubmit((values) => createMutation.mutate(values))}
           >
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Contact Person *
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Supplier Name *</label>
               <input
-                placeholder="Full name"
+                placeholder="Company Name"
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                {...register('name', { required: true })}
+                {...register('name', { required: 'Name is required' })}
               />
+              {errors.name && <p className="text-xs text-rose-500 mt-1">{errors.name.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Company Name *
-              </label>
-              <input
-                placeholder="Company name"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                {...register('company', { required: true })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Email *
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email *</label>
               <input
                 placeholder="contact@company.com"
                 type="email"
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                {...register('contactEmail', { required: true })}
+                {...register('email', { required: 'Email is required' })}
               />
+              {errors.email && <p className="text-xs text-rose-500 mt-1">{errors.email.message}</p>}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Phone
-              </label>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone *</label>
               <input
                 placeholder="+1-555-123-4567"
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                {...register('contactPhone')}
+                {...register('phone', { required: 'Phone is required' })}
               />
+              {errors.phone && <p className="text-xs text-rose-500 mt-1">{errors.phone.message}</p>}
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Address
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Address</label>
               <textarea
                 placeholder="Full address"
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none resize-none"
