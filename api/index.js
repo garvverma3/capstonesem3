@@ -36,25 +36,27 @@ module.exports = async (req, res) => {
   try {
     const app = await initializeApp();
     
-    // Vercel routes /api/* to this function
-    // Express app has routes at /health and /api/*
-    // So we need to handle both cases:
-    // - /api/health → /health (strip /api for direct routes)
-    // - /api/auth/login → /api/auth/login (keep as is for /api routes)
+    // Vercel routes /api/* to this function, so req.url will be like /api/health or /api/auth/login
+    // Express app structure:
+    //   - /health (direct route)
+    //   - /api/* (routes under /api prefix)
+    // 
+    // So when Vercel sends /api/health, we need to strip /api to get /health
+    // When Vercel sends /api/auth/login, Express expects /api/auth/login (which it already is)
     
     const originalUrl = req.url;
     
-    // Strip /api prefix for direct routes (like /health)
-    // Keep /api prefix for routes that are under /api in Express
-    if (originalUrl.startsWith('/api/health')) {
-      req.url = originalUrl.replace(/^\/api/, '');
+    // Handle /api/health - strip /api prefix to match Express route at /health
+    if (originalUrl === '/api/health' || originalUrl.startsWith('/api/health')) {
+      req.url = originalUrl.replace(/^\/api/, '') || '/';
     }
-    // For all other /api/* routes, Express expects them with /api prefix
-    // So we keep the URL as is
+    // All other routes like /api/auth/login are already correct for Express
     
     return app(req, res);
   } catch (error) {
     console.error('Serverless function error:', error);
+    console.error('Request URL:', req.url);
+    console.error('Original URL:', req.originalUrl);
     res.status(500).json({ 
       success: false, 
       message: 'Internal server error',
