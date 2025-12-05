@@ -46,13 +46,14 @@ const statusConfig = {
 };
 
 const formatStatus = (status) => {
+  if (!status) return 'Unknown';
   return status
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 };
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status = 'pending' }) => {
   const config = statusConfig[status] || {
     bg: 'bg-slate-100',
     text: 'text-slate-600',
