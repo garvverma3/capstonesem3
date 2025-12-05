@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -21,15 +21,18 @@ model User {
 }
 
 model Drug {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   name        String
   description String?
+  category    String
   price       Float
   quantity    Int
+  expiryDate  DateTime
+  status      String    @default("in_stock")
   supplierId  Int
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   orderItems  OrderItem[]
 }
 

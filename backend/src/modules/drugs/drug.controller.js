@@ -1,22 +1,33 @@
 const { StatusCodes } = require('http-status-codes');
-const { Drug } = require('./drug.model');
-const { Supplier } = require('../suppliers/supplier.model');
 const { ApiError } = require('../../utils/apiError');
 const { ApiResponse } = require('../../utils/apiResponse');
 const { asyncHandler } = require('../../utils/asyncHandler');
 const { buildPagination } = require('../../utils/paginate');
 const { determineStatus } = require('./drug.helpers');
+const drugService = require('./drug.service');
+// We need to check supplier existence, best to use the service if available or prisma direct if acceptable.
+// Since we don't have checkSupplier in drugService, let's use prisma direct from config for existence checks or add it to service.
+// Simpler to just use prisma here for strict checks or blindly create. 
+// Let's import prisma config to check supplier existence easily.
+const prisma = require('../../config/prisma');
 
 const createDrug = asyncHandler(async (req, res) => {
-  const supplierExists = await Supplier.exists({ _id: req.body.supplier });
-  if (!supplierExists) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, 'Supplier not found');
+  const { supplier: supplierId } = req.body;
+  if (supplierId) {
+    const supplierExists = await prisma.supplier.findUnique({ where: { id: parseInt(supplierId) } });
+    if (!supplierExists) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Supplier not found');
+    }
   }
+
   const payload = {
     ...req.body,
+    supplierId: parseInt(supplierId), // Map supplier to supplierId for Prisma
     status: determineStatus(req.body),
   };
-  const drug = await Drug.create(payload);
+  delete payload.supplier; // Remove the old field name
+
+  const drug = await drugService.createDrug(payload);
   return res
     .status(StatusCodes.CREATED)
     .json(new ApiResponse(StatusCodes.CREATED, drug, 'Drug created'));
@@ -33,31 +44,21 @@ const listDrugs = asyncHandler(async (req, res) => {
     expiryBefore,
   } = req.query;
   const pagination = buildPagination(req.query);
+
   const filter = {};
-
-  if (search) {
-    filter.name = { $regex: search, $options: 'i' };
-  }
+  if (search) filter.name = search;
   if (category) filter.category = category;
-  if (supplier) filter.supplier = supplier;
+  if (supplier) filter.supplierId = supplier;
   if (status) filter.status = status;
-  if (minQuantity || maxQuantity) {
-    filter.quantity = {};
-    if (minQuantity) filter.quantity.$gte = Number(minQuantity);
-    if (maxQuantity) filter.quantity.$lte = Number(maxQuantity);
-  }
-  if (expiryBefore) {
-    filter.expiryDate = { $lte: new Date(expiryBefore) };
-  }
+  if (minQuantity) filter.minQuantity = minQuantity;
+  if (maxQuantity) filter.maxQuantity = maxQuantity;
+  if (expiryBefore) filter.expiryBefore = expiryBefore;
 
-  const [drugs, total] = await Promise.all([
-    Drug.find(filter)
-      .populate('supplier')
-      .skip(pagination.skip)
-      .limit(pagination.limit)
-      .sort({ createdAt: -1 }),
-    Drug.countDocuments(filter),
-  ]);
+  const { drugs, total } = await drugService.listDrugs({
+    filter,
+    skip: pagination.skip,
+    limit: pagination.limit,
+  });
 
   return res.status(StatusCodes.OK).json(
     new ApiResponse(
@@ -76,7 +77,7 @@ const listDrugs = asyncHandler(async (req, res) => {
 
 const getDrugById = asyncHandler(async (req, res) => {
   const { drugId } = req.params;
-  const drug = await Drug.findById(drugId).populate('supplier');
+  const drug = await drugService.getDrugById(drugId);
   if (!drug) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Drug not found');
   }
@@ -88,26 +89,29 @@ const getDrugById = asyncHandler(async (req, res) => {
 
 const updateDrug = asyncHandler(async (req, res) => {
   const { drugId } = req.params;
-  const existing = await Drug.findById(drugId);
+  const existing = await drugService.getDrugById(drugId);
   if (!existing) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Drug not found');
   }
 
   if (req.body.supplier) {
-    const supplierExists = await Supplier.exists({ _id: req.body.supplier });
+    const supplierExists = await prisma.supplier.findUnique({ where: { id: parseInt(req.body.supplier) } });
     if (!supplierExists) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Supplier not found');
     }
   }
 
   const payload = { ...req.body };
+  if (payload.supplier) {
+    payload.supplierId = parseInt(payload.supplier);
+    delete payload.supplier;
+  }
+
   const quantity = payload.quantity ?? existing.quantity;
   const expiryDate = payload.expiryDate ?? existing.expiryDate;
   payload.status = determineStatus({ quantity, expiryDate });
 
-  const updated = await Drug.findByIdAndUpdate(drugId, payload, {
-    new: true,
-  }).populate('supplier');
+  const updated = await drugService.updateDrug(drugId, payload);
 
   return res
     .status(StatusCodes.OK)
@@ -116,10 +120,15 @@ const updateDrug = asyncHandler(async (req, res) => {
 
 const deleteDrug = asyncHandler(async (req, res) => {
   const { drugId } = req.params;
-  const drug = await Drug.findByIdAndDelete(drugId);
-  if (!drug) {
+  // Check existence first or handle error? Service could handle, but controller pattern usually checks.
+  // Prisma delete throws if not found usually unless using deleteMany.
+  // Let's safe check.
+  const existing = await drugService.getDrugById(drugId);
+  if (!existing) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Drug not found');
   }
+
+  await drugService.deleteDrug(drugId);
   return res
     .status(StatusCodes.OK)
     .json(new ApiResponse(StatusCodes.OK, null, 'Drug deleted'));

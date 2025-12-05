@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const { StatusCodes } = require('http-status-codes');
 const { config } = require('../config/env');
 const { ApiError } = require('../utils/apiError');
-const { User } = require('../modules/users/user.model');
+const prisma = require('../config/prisma');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -13,7 +13,9 @@ const authenticate = async (req, res, next) => {
 
     const token = header.split(' ')[1];
     const payload = jwt.verify(token, config.jwt.secret);
-    const user = await User.findById(payload.userId);
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(payload.userId) }
+    });
     if (!user) {
       throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid token');
     }
@@ -31,14 +33,14 @@ const authenticate = async (req, res, next) => {
 
 const authorize =
   (...roles) =>
-  (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return next(
-        new ApiError(StatusCodes.FORBIDDEN, 'Insufficient permissions'),
-      );
-    }
-    return next();
-  };
+    (req, res, next) => {
+      if (!req.user || !roles.includes(req.user.role)) {
+        return next(
+          new ApiError(StatusCodes.FORBIDDEN, 'Insufficient permissions'),
+        );
+      }
+      return next();
+    };
 
 module.exports = { authenticate, authorize };
 
