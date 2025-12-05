@@ -4,20 +4,33 @@ import axios from 'axios';
 const getApiUrl = () => {
   // If explicitly set, use that
   if (process.env.REACT_APP_API_URL) {
+    console.log('[API Client] Using REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
     return process.env.REACT_APP_API_URL;
   }
   
-  // In production (Vercel), use the same origin with /api prefix
-  if (process.env.NODE_ENV === 'production') {
+  // Check if we're in production or on Vercel
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isProduction = process.env.NODE_ENV === 'production' || 
+                       hostname.includes('vercel.app') ||
+                       hostname.includes('netlify.app') ||
+                       (hostname && !hostname.includes('localhost') && !hostname.includes('127.0.0.1'));
+  
+  // In production, use relative path to same origin
+  if (isProduction) {
+    console.log('[API Client] Production mode detected, using /api');
     return '/api';
   }
   
   // Development fallback
+  console.log('[API Client] Development mode, using localhost:5001/api');
   return 'http://localhost:5001/api';
 };
 
+const apiUrl = getApiUrl();
+console.log('[API Client] Base URL:', apiUrl);
+
 const apiClient = axios.create({
-  baseURL: getApiUrl(),
+  baseURL: apiUrl,
   withCredentials: false,
 });
 

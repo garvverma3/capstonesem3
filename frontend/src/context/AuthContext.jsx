@@ -70,10 +70,17 @@ export const AuthProvider = ({ children }) => {
           }
         } else if (err.request) {
           // Network error - server might not be running
+          const isProduction = process.env.NODE_ENV === 'production' || 
+                               (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'));
+          
           if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
-            errorMessage = 'Cannot connect to server. Please ensure the backend server is running on http://localhost:5001';
+            errorMessage = isProduction
+              ? 'Cannot connect to server. Please check Vercel function logs and ensure environment variables are configured correctly.'
+              : 'Cannot connect to server. Please ensure the backend server is running on http://localhost:5001';
           } else {
-            errorMessage = 'Network error. Please check your connection and ensure the backend server is running.';
+            errorMessage = isProduction 
+              ? 'Network error. Please check your connection and Vercel deployment status.'
+              : 'Network error. Please check your connection and ensure the backend server is running.';
           }
         }
         
@@ -113,10 +120,17 @@ export const AuthProvider = ({ children }) => {
           }
         } else if (err.request) {
           // Network error - server might not be running
+          const isProduction = process.env.NODE_ENV === 'production' || 
+                               (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'));
+          
           if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
-            errorMessage = 'Cannot connect to server. Please ensure the backend server is running on http://localhost:5001';
+            errorMessage = isProduction
+              ? 'Cannot connect to server. Please check Vercel function logs and ensure environment variables are configured correctly.'
+              : 'Cannot connect to server. Please ensure the backend server is running on http://localhost:5001';
           } else {
-            errorMessage = 'Network error. Please check your connection and ensure the backend server is running.';
+            errorMessage = isProduction 
+              ? 'Network error. Please check your connection and Vercel deployment status.'
+              : 'Network error. Please check your connection and ensure the backend server is running.';
           }
         }
         
