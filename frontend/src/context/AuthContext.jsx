@@ -69,7 +69,12 @@ export const AuthProvider = ({ children }) => {
             errorMessage = 'Too many login attempts. Please try again in a few minutes.';
           }
         } else if (err.request) {
-          errorMessage = 'Network error. Please check your connection.';
+          // Network error - server might not be running
+          if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
+            errorMessage = 'Cannot connect to server. Please ensure the backend server is running on http://localhost:5001';
+          } else {
+            errorMessage = 'Network error. Please check your connection and ensure the backend server is running.';
+          }
         }
         
         setError(errorMessage);
@@ -107,7 +112,12 @@ export const AuthProvider = ({ children }) => {
             errorMessage = 'Too many signup attempts. Please try again in a few minutes.';
           }
         } else if (err.request) {
-          errorMessage = 'Network error. Please check your connection.';
+          // Network error - server might not be running
+          if (err.code === 'ECONNREFUSED' || err.message?.includes('Network Error')) {
+            errorMessage = 'Cannot connect to server. Please ensure the backend server is running on http://localhost:5001';
+          } else {
+            errorMessage = 'Network error. Please check your connection and ensure the backend server is running.';
+          }
         }
         
         setError(errorMessage);
