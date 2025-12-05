@@ -1,5 +1,5 @@
 const { StatusCodes } = require('http-status-codes');
-const { User } = require('../users/user.model');
+const prisma = require('../../config/prisma');
 const { ApiError } = require('../../utils/apiError');
 const { ApiResponse } = require('../../utils/apiResponse');
 const { asyncHandler } = require('../../utils/asyncHandler');
@@ -16,7 +16,7 @@ const { ROLES } = require('../../constants/roles');
 const register = asyncHandler(async (req, res) => {
   const { name, email, password, role, phone } = req.body;
 
-  const existingUser = await User.findOne({ email });
+  const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
     throw new ApiError(StatusCodes.CONFLICT, 'Email already in use');
   }
@@ -26,12 +26,14 @@ const register = asyncHandler(async (req, res) => {
   }
 
   const hashed = await hashPassword(password);
-  const user = await User.create({
-    name,
-    email,
-    password: hashed,
-    role: role || ROLES.PHARMACIST,
-    phone,
+  const user = await prisma.user.create({
+    data: {
+      name,
+      email,
+      password: hashed,
+      role: role || ROLES.PHARMACIST,
+      phone,
+    }
   });
 
   const tokens = generateAuthTokens(user);
@@ -46,7 +48,10 @@ const register = asyncHandler(async (req, res) => {
 
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email }).select('+password +refreshTokenVersion');
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, email: true, name: true, role: true, phone: true, password: true, refreshTokenVersion: true, createdAt: true, updatedAt: true }
+  });
   if (!user) {
     throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid credentials');
   }
@@ -84,7 +89,7 @@ const refreshToken = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-  await incrementRefreshVersion(req.user._id);
+  await incrementRefreshVersion(req.user.id);
   return res
     .status(StatusCodes.OK)
     .json(new ApiResponse(StatusCodes.OK, null, 'Logged out'));

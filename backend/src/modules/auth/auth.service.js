@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { config } = require('../../config/env');
-const { User } = require('../users/user.model');
+const prisma = require('../../config/prisma');
 const { ApiError } = require('../../utils/apiError');
 const { StatusCodes } = require('http-status-codes');
 
@@ -12,7 +12,7 @@ const comparePassword = (password, hash) => bcrypt.compare(password, hash);
 
 const generateAccessToken = (user) =>
   jwt.sign(
-    { userId: user._id.toString(), role: user.role },
+    { userId: user.id.toString(), role: user.role },
     config.jwt.secret,
     {
       expiresIn: config.jwt.accessExpiresIn,
@@ -22,7 +22,7 @@ const generateAccessToken = (user) =>
 const generateRefreshToken = (user) =>
   jwt.sign(
     {
-      userId: user._id.toString(),
+      userId: user.id.toString(),
       tokenVersion: user.refreshTokenVersion,
     },
     config.jwt.refreshSecret,
@@ -39,7 +39,10 @@ const generateAuthTokens = (user) => ({
 const verifyRefreshToken = async (token) => {
   try {
     const payload = jwt.verify(token, config.jwt.refreshSecret);
-    const user = await User.findById(payload.userId).select('+refreshTokenVersion');
+    const user = await prisma.user.findUnique({
+      where: { id: parseInt(payload.userId) },
+      select: { id: true, email: true, name: true, role: true, refreshTokenVersion: true }
+    });
     if (!user || user.refreshTokenVersion !== payload.tokenVersion) {
       throw new ApiError(StatusCodes.UNAUTHORIZED, 'Invalid refresh token');
     }
@@ -50,11 +53,14 @@ const verifyRefreshToken = async (token) => {
 };
 
 const incrementRefreshVersion = async (userId) => {
-  await User.findByIdAndUpdate(userId, { $inc: { refreshTokenVersion: 1 } });
+  await prisma.user.update({
+    where: { id: parseInt(userId) },
+    data: { refreshTokenVersion: { increment: 1 } }
+  });
 };
 
 const sanitizeUser = (user) => {
-  const { password, refreshTokenVersion, ...safe } = user.toObject();
+  const { password, refreshTokenVersion, ...safe } = user;
   return safe;
 };
 

@@ -1,19 +1,44 @@
-const { User } = require('./user.model');
+const prisma = require('../../config/prisma');
 
-const createUser = (data) => User.create(data);
+const createUser = (data) => prisma.user.create({ data });
 
-const findUserByEmail = (email, options = {}) =>
-  User.findOne({ email }).select(options.select || '');
+const findUserByEmail = (email, options = {}) => {
+  const select = options.select ? parseSelectString(options.select) : undefined;
+  return prisma.user.findUnique({
+    where: { email },
+    select: select || undefined
+  });
+};
 
-const findUserById = (id) => User.findById(id);
+const findUserById = (id) => prisma.user.findUnique({ where: { id: parseInt(id) } });
 
 const updateUserRole = (id, role) =>
-  User.findByIdAndUpdate(id, { role }, { new: true });
+  prisma.user.update({
+    where: { id: parseInt(id) },
+    data: { role }
+  });
 
 const listUsers = ({ filter = {}, skip = 0, limit = 10 }) =>
-  User.find(filter).skip(skip).limit(limit).sort({ createdAt: -1 });
+  prisma.user.findMany({
+    where: filter,
+    skip,
+    take: limit,
+    orderBy: { createdAt: 'desc' }
+  });
 
-const countUsers = (filter = {}) => User.countDocuments(filter);
+const countUsers = (filter = {}) => prisma.user.count({ where: filter });
+
+// Helper to parse Mongoose-style select strings like '+password +refreshTokenVersion'
+const parseSelectString = (selectStr) => {
+  if (!selectStr) return undefined;
+  const fields = selectStr.split(' ').filter(Boolean);
+  const select = {};
+  fields.forEach(field => {
+    const key = field.replace('+', '');
+    select[key] = true;
+  });
+  return select;
+};
 
 module.exports = {
   createUser,
@@ -23,5 +48,3 @@ module.exports = {
   listUsers,
   countUsers,
 };
-
-
